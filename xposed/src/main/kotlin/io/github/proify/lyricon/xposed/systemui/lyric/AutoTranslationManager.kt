@@ -231,6 +231,8 @@ object AutoTranslationManager {
         Log.i(TAG, "translateSong: begin, totalLines=${sourceLines.size}")
         val translationByText = mutableMapOf<String, String>()
         val missedTexts = LinkedHashSet<String>()
+        val sameLanguagePairs = mutableListOf<Pair<String, String>>()
+        val isTargetChinese = settings.targetLanguage.contains("中文")
 
         // 遍历每行，检查是否需要翻译
         for (line in sourceLines) {
@@ -247,11 +249,25 @@ object AutoTranslationManager {
             if (!cached.isNullOrBlank()) {
                 translationByText[text] = cached
             } else {
-                missedTexts += text
+                if (isTargetChinese && isChinese(text)) {
+                    translationByText[text] = text
+                    sameLanguagePairs += text to text
+                } else {
+                    missedTexts += text
+                }
             }
         }
 
-        Log.i(TAG, "translateSong: cachedTranslations=${translationByText.size}, missed=${missedTexts.size}")
+        if (sameLanguagePairs.isNotEmpty()) {
+            putCachedTranslations(
+                provider = settings.provider,
+                model = settings.model,
+                targetLanguage = settings.targetLanguage,
+                pairs = sameLanguagePairs
+            )
+        }
+
+        Log.i(TAG, "translateSong: cachedTranslations=${translationByText.size}, sameLang=${sameLanguagePairs.size}, missed=${missedTexts.size}")
         // 请求未命中的批量翻译
         if (missedTexts.isNotEmpty()) {
             val newTranslations = requestTranslation(settings, missedTexts.toList())
@@ -289,7 +305,7 @@ object AutoTranslationManager {
             val text = line.text?.trim().orEmpty()
             if (line.translation.isNullOrBlank() && text.isNotBlank()) {
                 val translated = translationByText[text]
-                if (!translated.isNullOrBlank()) line.copy(translation = translated) else line
+                if (!translated.isNullOrBlank() && translated != text) line.copy(translation = translated) else line
             } else {
                 line
             }
@@ -506,9 +522,35 @@ object AutoTranslationManager {
         return buildString {
             appendLine("Target language: $targetLanguage")
             appendLine("Translate each line in the same order.")
+            appendLine("If the source text is already in the target language, return the original text directly.")
             appendLine("Return strictly a JSON array of strings with the same length.")
             append("Input: $payload")
         }
+    }
+
+    private fun isChinese(text: String): Boolean {
+        var hasChinese = false
+        for (c in text) {
+            if (c.isWhitespace()) continue
+            if (isCommonPunctuation(c)) continue
+            if (c.code in 0x4E00..0x9FA5) {
+                hasChinese = true
+                continue
+            }
+            return false
+        }
+        return hasChinese
+    }
+
+    private fun isCommonPunctuation(c: Char): Boolean {
+        val type = Character.getType(c)
+        return type == Character.CONNECTOR_PUNCTUATION.toInt() ||
+                type == Character.DASH_PUNCTUATION.toInt() ||
+                type == Character.START_PUNCTUATION.toInt() ||
+                type == Character.END_PUNCTUATION.toInt() ||
+                type == Character.INITIAL_QUOTE_PUNCTUATION.toInt() ||
+                type == Character.FINAL_QUOTE_PUNCTUATION.toInt() ||
+                type == Character.OTHER_PUNCTUATION.toInt()
     }
 
     /**
