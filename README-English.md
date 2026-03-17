@@ -80,6 +80,7 @@
 - [MobiMusic](https://mobimusic.com/)
 - [Kanade](https://github.com/rcmiku/Kanade)
 - Sollin Player
+- [QZ Music](https://github.com/lqtmcstudio/QZMusic)
 
 ---
 
