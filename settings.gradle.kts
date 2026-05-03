@@ -6,7 +6,6 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
-        maven { url = uri("https://api.xposed.info/") }
     }
 }
 
@@ -21,7 +20,6 @@ dependencyResolutionManagement {
         maven { url = uri("https://jitpack.io") }
         google()
         mavenCentral()
-        maven { url = uri("https://api.xposed.info/") }
     }
 }
 
@@ -35,6 +33,8 @@ include(
 
 include(":lyric:bridge:central")
 include(":lyric:bridge:provider")
+include(":lyric:bridge:subscriber")
+include(":lyric:bridge:centralapp")
 include(":lyric:bridge:localcentralapp")
 
 include(":lyric:model")
@@ -43,4 +43,6 @@ include(":lyric:style")
 include(":lyric:viewAppTest")
 include(":lyric:statusbarlyric")
 
-rootProject.name = "LyriconProject"
+include(":opencc-lite")
+
+rootProject.name = "lyricon"

@@ -8,131 +8,164 @@
 
 package io.github.proify.lyricon.xposed.systemui.util
 
-import android.app.AndroidAppHelper
-import android.app.Notification
-import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.drawable.Icon
-import android.service.notification.StatusBarNotification
-import com.highcapable.yukihookapi.hook.log.YLog
-import de.robv.android.xposed.XC_MethodHook
-import de.robv.android.xposed.XposedBridge
+import android.media.MediaMetadata
+import android.media.session.MediaController
+import android.util.Log
 import io.github.proify.android.extensions.saveTo
-import io.github.proify.android.extensions.toBitmap
 import io.github.proify.lyricon.xposed.systemui.Directory
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.File
-import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArraySet
+import java.util.concurrent.atomic.AtomicBoolean
 
 object NotificationCoverHelper {
-    private var unhooks: MutableSet<XC_MethodHook.Unhook>? = null
-    private val listeners = CopyOnWriteArrayList<OnCoverUpdateListener>()
+
+    private const val TAG = "NotificationCoverHelper"
     private const val COVER_FILE_NAME = "cover.png"
+    private const val TEMP_FILE_NAME = "cover.png.tmp" // 用于原子写入
 
-    private val NOTIFICATION_LISTENER_CLASS_CANDIDATES = arrayOf(
-        "com.android.systemui.statusbar.notification.MiuiNotificationListener",
-        "com.android.systemui.statusbar.NotificationListener",
-    )
+    private val listeners = CopyOnWriteArraySet<OnCoverUpdateListener>()
+    private val isInitialized = AtomicBoolean(false)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val mediaControllerManagers = ConcurrentHashMap<String, MediaControllerManager>()
 
-    fun registerListener(listener: OnCoverUpdateListener) {
-        listeners.add(listener)
+    fun registerListener(listener: OnCoverUpdateListener) = listeners.add(listener)
+    fun unregisterListener(listener: OnCoverUpdateListener) = listeners.remove(listener)
+
+    @Synchronized
+    private fun getMCM(packageName: String): MediaControllerManager {
+        return mediaControllerManagers.getOrPut(packageName) {
+            MediaControllerManager(packageName)
+        }
     }
 
-    fun unregisterListener(listener: OnCoverUpdateListener) {
-        listeners.remove(listener)
-    }
+    private data class MediaControllerManager(val packageName: String) {
+        @Volatile
+        private var lastGenerationId: Int = -1
+        private val mutex = Mutex()
 
-    private fun findNotificationListenerClass(classLoader: ClassLoader): Class<*>? {
-        for (className in NOTIFICATION_LISTENER_CLASS_CANDIDATES) {
-            try {
-                return classLoader.loadClass(className)
-            } catch (_: ClassNotFoundException) {
-                // ignored
+        fun onMediaChanged(metadata: MediaMetadata) {
+            val originalCover = metadata.extractAlbumArt() ?: return
+
+            // 1. 立即检查回收状态和 ID
+            if (originalCover.isRecycled) return
+            val currentId = originalCover.generationId
+            if (lastGenerationId == currentId) return
+
+            /**
+             * 克隆 Bitmap
+             * 必须在主线程/当前线程立即克隆，因为 metadata 里的 Bitmap 生命周期不可控。
+             */
+            val coverCopy = try {
+                originalCover.copy(originalCover.config ?: Bitmap.Config.ARGB_8888, false)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to copy bitmap for $packageName", e)
+                null
+            } ?: return
+
+            scope.launch {
+                processCoverSave(coverCopy, currentId)
             }
         }
-        return null
+
+        private suspend fun processCoverSave(cover: Bitmap, currentId: Int) {
+            try {
+                mutex.withLock {
+                    if (lastGenerationId == currentId) {
+                        cover.recycle() // 及时回收副本
+                        return@withLock
+                    }
+
+                    val success = withContext(Dispatchers.IO) {
+                        try {
+                            val dir = Directory.getPackageDataDir(packageName)
+                            if (dir == null) {
+                                Log.e(TAG, "Failed to get package data dir for $packageName")
+                                return@withContext false
+                            }
+                            val targetFile = File(dir, COVER_FILE_NAME)
+                            val tempFile = File(dir, TEMP_FILE_NAME)
+
+                            /**
+                             * 原子写入逻辑
+                             * 先写临时文件，写完后 rename。防止读取端读到写了一半的文件。
+                             */
+                            if (cover.saveTo(tempFile)) {
+                                if (tempFile.renameTo(targetFile)) {
+                                    true
+                                } else {
+                                    // 某些系统 rename 失败（如跨分区），尝试覆盖拷贝
+                                    tempFile.copyTo(targetFile, overwrite = true)
+                                    tempFile.delete()
+                                    true
+                                }
+                            } else false
+                        } catch (e: Exception) {
+                            Log.e(TAG, "IO error saving cover for $packageName", e)
+                            false
+                        }
+                    }
+
+                    if (success) {
+                        lastGenerationId = currentId
+                        getCoverFile(packageName)?.let { notifyListeners(packageName, it) }
+                    }
+
+                    // 无论成功失败，处理完都要释放副本内存
+                    if (!cover.isRecycled) cover.recycle()
+                }
+            } catch (e: CancellationException) {
+                if (!cover.isRecycled) cover.recycle()
+                throw e
+            }
+        }
     }
 
-    fun initialize(classLoader: ClassLoader) {
-        unhooks?.forEach { it.unhook() }
+    fun initialize() {
+        if (!isInitialized.compareAndSet(false, true)) return
+        SystemUIMediaUtils.registerListener(object : SystemUIMediaUtils.MediaControllerCallback {
+            override fun onMediaChanged(controller: MediaController, metadata: MediaMetadata) {
+                val pkg = controller.packageName ?: return
+                getMCM(pkg).onMediaChanged(metadata)
+            }
 
-        val listenerClass = findNotificationListenerClass(classLoader)
-        if (listenerClass == null) {
-            YLog.error("未找到通知监听器类,无法 Hook 通知")
-            return
-        }
-
-        try {
-            unhooks = XposedBridge.hookAllMethods(
-                listenerClass,
-                "onNotificationPosted",
-                NotificationPostedHook()
-            )
-        } catch (e: Throwable) {
-            YLog.error("Hook 通知监听器失败", e)
-        }
+            override fun onSessionDestroyed(controller: MediaController) {
+                val pkg = controller.packageName ?: return
+                mediaControllerManagers.remove(pkg)
+            }
+        })
     }
 
-    fun getCoverFile(packageName: String): File =
-        File(Directory.getPackageDataDir(packageName), COVER_FILE_NAME)
+    private fun notifyListeners(packageName: String, coverFile: File) {
+        listeners.forEach { it.onCoverUpdated(packageName, coverFile) }
+    }
+
+    fun getCoverFile(packageName: String): File? {
+        val dir = Directory.getPackageDataDir(packageName) ?: return null
+        return File(dir, COVER_FILE_NAME)
+    }
+
+    private fun MediaMetadata.extractAlbumArt(): Bitmap? =
+        getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+            ?: getBitmap(MediaMetadata.METADATA_KEY_ART)
+            ?: getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
 
     fun interface OnCoverUpdateListener {
         fun onCoverUpdated(packageName: String, coverFile: File)
     }
 
-    private class NotificationPostedHook : XC_MethodHook() {
-
-        override fun afterHookedMethod(param: MethodHookParam) {
-            extractAndSaveCover(param)
-        }
-
-        private fun extractAndSaveCover(param: MethodHookParam) {
-            val args = param.args
-
-            val statusBarNotification = args[0] as? StatusBarNotification ?: return
-
-            val packageName = statusBarNotification.packageName
-            val notification: Notification = statusBarNotification.notification
-
-            if (!isMediaStyle(notification)) return
-
-//            for (key in notification.extras.keySet()) {
-//                val value = notification.extras.get(key)
-//                Log.d("NotificationExtras", "$key = $value")
-//            }
-
-            val icon: Icon = notification.getLargeIcon() ?: return
-
-            saveCoverIcon(icon, packageName)
-        }
-
-        fun isMediaStyle(n: Notification): Boolean {
-            val e = n.extras
-            return e.containsKey(Notification.EXTRA_MEDIA_SESSION)
-                    || e.containsKey("android.media.metadata.ALBUM_ART")
-                    || e.containsKey("android.media.metadata.ART")
-        }
-
-        private fun saveCoverIcon(icon: Icon, packageName: String) {
-            val context: Context? = AndroidAppHelper.currentApplication()
-            if (context == null) {
-                YLog.warn("无法获取上下文")
-                return
-            }
-
-            val drawable = icon.loadDrawable(context)
-            if (drawable == null) {
-                YLog.warn("无法加载封面图标")
-                return
-            }
-
-            val bitmap: Bitmap = drawable.toBitmap()
-            val coverFile = getCoverFile(packageName)
-
-            bitmap.saveTo(coverFile)
-
-            for (listener in listeners) {
-                listener.onCoverUpdated(packageName, coverFile)
-            }
-        }
+    fun destroy() {
+        scope.cancel()
+        mediaControllerManagers.clear()
     }
 }

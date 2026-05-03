@@ -49,7 +49,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.proify.lyricon.app.R
 import io.github.proify.lyricon.app.compose.SwipeableItem
-import io.github.proify.lyricon.app.compose.custom.miuix.extra.SuperCheckbox
+import io.github.proify.lyricon.app.compose.custom.miuix.preference.CheckboxPreference
 import io.github.proify.lyricon.app.util.LyricPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,11 +61,11 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.extra.SuperBottomSheet
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.AddCircle
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
 data class PackageSwitchUiState(
     val configureds: List<PackageItem> = emptyList(),
@@ -373,15 +373,11 @@ private fun PackageSwitchSheetContent(
     val packageItems = state.configureds
     val showState = remember { mutableStateOf(true) }
 
-    SuperBottomSheet(
-        insideMargin = DpSize(0.dp, 0.dp),
-        show = showState,
-        title = stringResource(R.string.manager_package_config),
-        backgroundColor = MiuixTheme.colorScheme.surface,
-        onDismissRequest = {
-            showState.value = false
-            callbacks.onDismiss()
-        },
+    WindowBottomSheet(
+        show = showState.value,
+        modifier = Modifier,
+        title = stringResource(R.string.manage_app_styles),
+        startAction = null,
         endAction = {
             Row {
                 IconButton(onClick = callbacks.onAddClick) {
@@ -395,45 +391,51 @@ private fun PackageSwitchSheetContent(
                 Spacer(modifier = Modifier.width(16.dp))
             }
         },
-    ) {
-        LazyColumn(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .overScrollVertical()
-                    .animateContentSize(),
-        ) {
-            items(
-                items = packageItems,
-                key = { it.applicationInfo.packageName },
-            ) { item ->
-                val packageName = item.applicationInfo.packageName
-                val isDefault = viewModel.isDefaultPackage(packageName)
-                val isEnabled = isDefault || state.enableds.contains(packageName)
+        backgroundColor = MiuixTheme.colorScheme.surface,
+        onDismissRequest = {
+            showState.value = false
+            callbacks.onDismiss()
+        },
+        insideMargin = DpSize(0.dp, 0.dp),
+        content = {
+            LazyColumn(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .overScrollVertical()
+                        .animateContentSize(),
+            ) {
+                items(
+                    items = packageItems,
+                    key = { it.applicationInfo.packageName },
+                ) { item ->
+                    val packageName = item.applicationInfo.packageName
+                    val isDefault = viewModel.isDefaultPackage(packageName)
+                    val isEnabled = isDefault || state.enableds.contains(packageName)
 
-                PackageListItem(
-                    state =
-                        PackageItemState(
-                            item = item,
-                            isSelected = state.selectedPackage == packageName,
-                            isEnabled = isEnabled,
-                            displayEnable = !isDefault,
-                        ),
-                    callbacks =
-                        PackageItemCallbacks(
-                            onSelect = { callbacks.onSelect(packageName) },
-                            onRestore = { callbacks.onRestore(packageName) },
-                            onDelete = { callbacks.onDelete(packageName) },
-                            onEnable = { enabled -> callbacks.onEnable(packageName, enabled) },
-                        ),
-                    modifier = Modifier.padding(bottom = 13.dp),
-                )
+                    PackageListItem(
+                        state =
+                            PackageItemState(
+                                item = item,
+                                isSelected = state.selectedPackage == packageName,
+                                isEnabled = isEnabled,
+                                displayEnable = !isDefault,
+                            ),
+                        callbacks =
+                            PackageItemCallbacks(
+                                onSelect = { callbacks.onSelect(packageName) },
+                                onRestore = { callbacks.onRestore(packageName) },
+                                onDelete = { callbacks.onDelete(packageName) },
+                                onEnable = { enabled -> callbacks.onEnable(packageName, enabled) },
+                            ),
+                        modifier = Modifier.padding(bottom = 13.dp),
+                    )
+                }
+                item(key = "bottom_spacer") {
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
             }
-            item(key = "bottom_spacer") {
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-        }
-    }
+        })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -536,7 +538,7 @@ private fun PackageListItem(
                     .padding(horizontal = 16.dp)
                     .fillMaxWidth()
         ) {
-            SuperCheckbox(
+            CheckboxPreference(
                 startActions = {
                     AsyncAppIcon(
                         application = state.item.applicationInfo,

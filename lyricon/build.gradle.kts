@@ -12,6 +12,23 @@ configure<ApplicationExtension> {
         version = release(rootProject.extra.get("compileSdkVersion") as Int)
     }
 
+    packaging {
+        resources {
+            excludes.addAll(
+                listOf(
+                    "META-INF/**/LICENSE*",
+                    "META-INF/**/NOTICE*",
+                    "META-INF/*.version",
+                    "DebugProbesKt.bin"
+                )
+            )
+        }
+        dex {
+            //强制压缩Dex
+            useLegacyPackaging = true
+        }
+    }
+
     defaultConfig {
         applicationId = rootProject.extra["appPackageName"] as String
         minSdk = rootProject.extra["minSdkVersion"] as Int
@@ -20,6 +37,27 @@ configure<ApplicationExtension> {
         versionName = rootProject.extra["appVersionName"] as String
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        androidResources {
+            @Suppress("UnstableApiUsage")
+            localeFilters += listOf(
+                "en",
+                "zh-rCN",
+                "zh-rTW",
+                "zh-rHK"
+            )
+        }
+    }
+
+    flavorDimensions += "locale"
+    productFlavors {
+        create("standard") {
+            dimension = "locale"
+        }
+        create("zh") {
+            dimension = "locale"
+            versionNameSuffix = "-zh"
+        }
     }
 
     signingConfigs {
@@ -59,18 +97,7 @@ configure<ApplicationExtension> {
         abi {
             isEnable = true
             reset()
-            include("armeabi-v7a", "arm64-v8a")
-        }
-    }
-    defaultConfig {
-        androidResources {
-            @Suppress("UnstableApiUsage")
-            localeFilters += listOf(
-                "en",
-                "zh-rCN",
-                "zh-rTW",
-                "zh-rHK"
-            )
+            include("arm64-v8a")
         }
     }
 }

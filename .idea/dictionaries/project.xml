@@ -5,12 +5,15 @@
       <w>Hant</w>
       <w>Miuix</w>
       <w>Oplus</w>
+      <w>Sollin</w>
       <w>amprovider</w>
+      <w>centralapp</w>
       <w>configureds</w>
       <w>decel</w>
       <w>deflater</w>
       <w>enableds</w>
       <w>interp</w>
+      <w>miuix</w>
       <w>oplus</w>
       <w>proify</w>
       <w>statusbar</w>
@@ -25,6 +28,7 @@
       <w>xposedmodule</w>
       <w>xposedscope</w>
       <w>xposedsharedprefs</w>
+      <w>xpreferences</w>
     </words>
   </dictionary>
 </component>

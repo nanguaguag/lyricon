@@ -4,36 +4,33 @@
  * http://www.apache.org/licenses/LICENSE-2.0
  */
 
-@file:Suppress("unused")
-
 package io.github.proify.lyricon.app.bridge
 
-import android.content.Context
 import androidx.annotation.Keep
-import com.highcapable.yukihookapi.YukiHookAPI
 import io.github.proify.lyricon.common.Constants
-import java.io.File
 
 object AppBridge {
 
-    fun isModuleActive(): Boolean =
-        runCatching {
-            YukiHookAPI.Status.isXposedModuleActive
-        }.getOrDefault(false)
-
     @Keep
-    fun getFrameworkInfo(): FrameworkInfo? = null
-
-    @Keep
-    fun getPreferenceDirectory(context: Context): File = File(context.filesDir, "preferences")
+    fun isActive(): Boolean = false
 
     object LyricStylePrefs {
-        const val DEFAULT_PACKAGE_NAME: String = Constants.APP_PACKAGE_NAME
-        const val PREF_NAME_BASE_STYLE: String = "baseLyricStyle"
-        const val PREF_PACKAGE_STYLE_MANAGER: String = "packageStyleManager"
-        const val KEY_ENABLED_PACKAGES: String = "enables"
+        const val LYRIC_STYLE_PREF_NAME_PREIFY: String = "lyricon_style_"
 
-        fun getPackageStylePreferenceName(packageName: String): String =
-            "package_style_${packageName.replace(".", "_")}"
+        const val DEFAULT_PACKAGE_NAME: String = Constants.APP_PACKAGE_NAME
+
+        const val PREF_NAME_BASE: String = LYRIC_STYLE_PREF_NAME_PREIFY + "base"
+        const val PREF_NAME_PACKAGE_MANAGER: String =
+            LYRIC_STYLE_PREF_NAME_PREIFY + "package_manager"
+
+        const val KEY_ENABLED_PACKAGES: String = "enables"
+        const val KEY_CONFIGURED_PACKAGES: String = "configured"
+
+        fun getPackageStylePrefName(packageName: String): String {
+            val prefix = LYRIC_STYLE_PREF_NAME_PREIFY + "app_"
+            return prefix + (packageName.replace(".", "_"))
+        }
+
     }
+
 }

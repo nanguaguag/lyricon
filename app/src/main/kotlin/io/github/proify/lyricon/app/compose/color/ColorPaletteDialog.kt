@@ -41,9 +41,9 @@ import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.extra.SuperBottomSheet
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -70,8 +70,9 @@ fun ColorPaletteDialog(
         keyboardController?.hide()
     }
 
-    SuperBottomSheet(
-        show = show,
+    OverlayBottomSheet (
+        show = show.value,
+        modifier = Modifier,
         title = title,
         endAction = {
             IconButton(onClick = {
@@ -85,58 +86,58 @@ fun ColorPaletteDialog(
                 )
             }
         },
-        onDismissRequest = { dismiss() }
-    ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .overScrollVertical()
-        ) {
-            item("color_picker_content") {
-                ColorPalette(
-                    color = selectedColor,
-                    onColorChanged = {
-                        selectedColor = it
-                        hexInput = it.toHexString()
-                    }
-                )
-
-                Spacer(Modifier.height(ITEM_SPACING))
-
-                HexInputRow(
-                    hexInput = hexInput,
-                    onHexInputChange = {
-                        hexInput = it
-                        runCatching { selectedColor = it.parseHexColor() }
-                    },
-                    onCopy = {
-                        clipboard.copyText(hexInput)
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
-                    },
-                    onPaste = {
-                        clipboard.pasteText()?.let { text ->
-                            hexInput = text
-                            runCatching { selectedColor = text.parseHexColor() }
+        onDismissRequest = { dismiss() },
+        content = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .overScrollVertical()
+            ) {
+                item("color_picker_content") {
+                    ColorPalette(
+                        color = selectedColor,
+                        onColorChanged = {
+                            selectedColor = it
+                            hexInput = it.toHexString()
                         }
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
-                    }
-                )
+                    )
 
-                content()
-                Spacer(Modifier.height(ITEM_SPACING))
+                    Spacer(Modifier.height(ITEM_SPACING))
 
-                DialogButtonRow(
-                    onCancel = { dismiss() },
-                    onConfirm = {
-                        onConfirm(selectedColor)
-                        dismiss()
-                    }
-                )
+                    HexInputRow(
+                        hexInput = hexInput,
+                        onHexInputChange = {
+                            hexInput = it
+                            runCatching { selectedColor = it.parseHexColor() }
+                        },
+                        onCopy = {
+                            clipboard.copyText(hexInput)
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
+                        },
+                        onPaste = {
+                            clipboard.pasteText()?.let { text ->
+                                hexInput = text
+                                runCatching { selectedColor = text.parseHexColor() }
+                            }
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
+                        }
+                    )
 
-                Spacer(Modifier.height(ITEM_SPACING))
+                    content()
+                    Spacer(Modifier.height(ITEM_SPACING))
+
+                    DialogButtonRow(
+                        onCancel = { dismiss() },
+                        onConfirm = {
+                            onConfirm(selectedColor)
+                            dismiss()
+                        }
+                    )
+
+                    Spacer(Modifier.height(ITEM_SPACING))
+                }
             }
-        }
-    }
+        })
 }
 
 @Composable

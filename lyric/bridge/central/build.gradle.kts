@@ -7,11 +7,10 @@ plugins {
 configure<LibraryExtension> {
     namespace = "io.github.proify.lyricon.central"
     compileSdk {
-        version = release(rootProject.extra.get("compileSdkVersion") as Int){
-            minorApiLevel = 1
+        version = release(rootProject.extra.get("compileSdkVersion") as Int) {
+           // minorApiLevel = 1
         }
     }
-
     defaultConfig {
         minSdk = 27
 
@@ -36,7 +35,8 @@ configure<LibraryExtension> {
 }
 
 dependencies {
-    implementation(project(":lyric:bridge:provider"))
+    api(project(":lyric:bridge:provider"))
+    api(project(":lyric:bridge:subscriber"))
 
     implementation(libs.androidx.core.ktx)
     testImplementation(libs.junit)

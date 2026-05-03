@@ -6,7 +6,6 @@
 
 package io.github.proify.lyricon.app.activity
 
-import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -15,25 +14,27 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.github.proify.android.extensions.defaultSharedPreferences
 import io.github.proify.lyricon.app.AppBackup
 import io.github.proify.lyricon.app.LyriconApp
 import io.github.proify.lyricon.app.R
 import io.github.proify.lyricon.app.compose.AppToolBarListContainer
 import io.github.proify.lyricon.app.compose.IconActions
-import io.github.proify.lyricon.app.compose.custom.miuix.extra.SuperArrow
-import io.github.proify.lyricon.app.compose.custom.miuix.extra.SuperSwitch
+import io.github.proify.lyricon.app.compose.preference.rememberBooleanPreference
 import io.github.proify.lyricon.app.event.SettingChangedEvent
-import io.github.proify.lyricon.app.updateRemoteLyricStyle
 import io.github.proify.lyricon.app.util.AppLangUtils
 import io.github.proify.lyricon.app.util.AppThemeUtils
 import io.github.proify.lyricon.app.util.EventBus
+import io.github.proify.lyricon.app.util.resolveLanguageName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -41,9 +42,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SpinnerEntry
-import top.yukonga.miuix.kmp.extra.SuperDropdown
-import top.yukonga.miuix.kmp.extra.SuperSpinner
-import java.util.Locale
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 class SettingsActivity : BaseActivity() {
 
@@ -80,7 +82,6 @@ class SettingsActivity : BaseActivity() {
             task()
             withContext(Dispatchers.Main) {
                 EventBus.post(SettingChangedEvent)
-                updateRemoteLyricStyle()
             }
         }
     }
@@ -125,6 +126,11 @@ class SettingsActivity : BaseActivity() {
                     ThemeSetting(onSettingsApplied)
                 }
             }
+            item("core_service") {
+                SettingsSectionCard(topPadding = 16.dp) {
+                    CoreServiceSetting()
+                }
+            }
             item("backup") {
                 SettingsSectionCard(topPadding = 16.dp) {
                     BackupSetting(onBackupExport, onBackupImport)
@@ -134,16 +140,36 @@ class SettingsActivity : BaseActivity() {
     }
 
     @Composable
+    private fun CoreServiceSetting() {
+        val context = LocalContext.current
+        var enable by rememberBooleanPreference(
+            context.defaultSharedPreferences,
+            "core_service_disable",
+            false
+        )
+
+        SwitchPreference(
+            checked = enable,
+            startAction = { IconActions(painterResource(R.drawable.ic_core_bear)) },
+            title = stringResource(R.string.item_disable_builtin_services),
+            summary = stringResource(R.string.item_summary_disable_builtin_services),
+            onCheckedChange = {
+                enable = it
+            }
+        )
+    }
+
+    @Composable
     private fun BackupSetting(
         onExport: () -> Unit,
         onImport: () -> Unit
     ) {
-        SuperArrow(
+        ArrowPreference(
             startAction = { IconActions(painterResource(R.drawable.ic_save)) },
             title = stringResource(R.string.item_app_backup),
             onClick = onExport
         )
-        SuperArrow(
+        ArrowPreference(
             startAction = { IconActions(painterResource(R.drawable.ic_settings_backup_restore)) },
             title = stringResource(R.string.item_app_restore),
             onClick = onImport
@@ -178,7 +204,7 @@ class SettingsActivity : BaseActivity() {
             val monetEnabled = remember {
                 AppThemeUtils.isEnableMonet(context)
             }
-            SuperSwitch(
+            SwitchPreference(
                 startAction = { IconActions(painterResource(R.drawable.ic_palette)) },
                 title = stringResource(R.string.item_app_theme_monet_color),
                 checked = monetEnabled,
@@ -198,7 +224,7 @@ class SettingsActivity : BaseActivity() {
                 .coerceAtLeast(0)
         }
 
-        SuperDropdown(
+        OverlayDropdownPreference(
             startAction = { IconActions(painterResource(R.drawable.ic_routine)) },
             title = stringResource(R.string.item_app_theme_mode),
             items = themeModeOptions.map { stringResource(it.first) },
@@ -243,7 +269,7 @@ class SettingsActivity : BaseActivity() {
             languageCodes.indexOf(currentLanguage).coerceAtLeast(0)
         }
 
-        SuperSpinner(
+        OverlaySpinnerPreference(
             startAction = { IconActions(painterResource(R.drawable.ic_language)) },
             title = stringResource(R.string.item_app_language),
             items = spinnerItems,
@@ -258,19 +284,4 @@ class SettingsActivity : BaseActivity() {
     private fun getSupportedLanguageCodes(): List<String> =
         LyriconApp.instance.resources.getStringArray(R.array.language_codes).toList()
 
-    private fun Context.resolveLanguageName(
-        languageCode: String,
-        displayLocale: Locale? = null
-    ): String {
-        if (languageCode == AppLangUtils.DEFAULT_LANGUAGE) {
-            return getString(R.string.option_language_follow_system)
-        }
-        return runCatching {
-            val locale = Locale.forLanguageTag(languageCode)
-            locale.getDisplayName(displayLocale ?: locale)
-                .replaceFirstChar {
-                    if (it.isLowerCase()) it.titlecase(locale) else it.toString()
-                }
-        }.getOrDefault(languageCode)
-    }
 }

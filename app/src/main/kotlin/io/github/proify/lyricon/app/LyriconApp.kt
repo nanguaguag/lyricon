@@ -5,24 +5,45 @@
  */
 package io.github.proify.lyricon.app
 
-import android.annotation.SuppressLint
+import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.PackageInfo
 import android.util.Log
 import androidx.core.content.pm.PackageInfoCompat
-import com.highcapable.yukihookapi.YukiHookAPI.Status.Executor
-import com.highcapable.yukihookapi.hook.factory.dataChannel
-import com.highcapable.yukihookapi.hook.xposed.application.ModuleApplication
-import com.highcapable.yukihookapi.hook.xposed.channel.YukiHookDataChannel
+import io.github.libxposed.service.XposedService
+import io.github.libxposed.service.XposedServiceHelper
 import io.github.proify.lyricon.app.util.AppLangUtils
-import io.github.proify.lyricon.common.PackageNames
 import io.github.proify.lyricon.common.util.safe
+import java.util.concurrent.CopyOnWriteArraySet
 
-class LyriconApp : ModuleApplication() {
+class LyriconApp : Application() {
 
     init {
         instance = this
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        Log.i(TAG, "LyriconApp created")
+
+        XposedServiceHelper.registerListener(object : XposedServiceHelper.OnServiceListener {
+            override fun onServiceBind(service: XposedService) {
+                Log.i(TAG, "XposedService bind")
+                xposedService = service
+                xposedServiceStateListeners.forEach {
+                    it.onServiceStateChanged(service)
+                }
+            }
+
+            override fun onServiceDied(service: XposedService) {
+                Log.i(TAG, "XposedService died")
+                xposedService = null
+                xposedServiceStateListeners.forEach {
+                    it.onServiceStateChanged(null)
+                }
+            }
+        })
     }
 
     override fun attachBaseContext(base: Context) {
@@ -30,27 +51,32 @@ class LyriconApp : ModuleApplication() {
         super.attachBaseContext(AppLangUtils.wrapContext(base))
     }
 
-    override fun onCreate() {
-        super.onCreate()
-        Log.d(
-            "Lyricon",
-            "name: ${Executor.name}" +
-                    ", type: ${Executor.type}" +
-                    ", apiLevel: ${Executor.apiLevel}" +
-                    ", versionName: ${Executor.versionName}" +
-                    ", versionCode: ${Executor.versionCode}"
-        )
-    }
-
     override fun getSharedPreferences(name: String?, mode: Int): SharedPreferences =
         super.getSharedPreferences(name, mode).safe()
 
     companion object {
         const val TAG: String = "LyriconApp"
+        private val xposedServiceStateListeners = CopyOnWriteArraySet<XposedServiceStateListener>()
 
-        @SuppressLint("StaticFieldLeak")
         lateinit var instance: LyriconApp
             private set
+
+        var xposedService: XposedService? = null
+            private set
+
+        fun addXposedServiceStateListener(
+            listener: XposedServiceStateListener,
+            notifyImmediately: Boolean = true
+        ) {
+            xposedServiceStateListeners.add(listener)
+            if (notifyImmediately && xposedService != null) {
+                listener.onServiceStateChanged(xposedService)
+            }
+        }
+
+        fun removeXposedServiceStateListener(listener: XposedServiceStateListener) {
+            xposedServiceStateListeners.remove(listener)
+        }
 
         fun get(): LyriconApp = instance
 
@@ -59,18 +85,18 @@ class LyriconApp : ModuleApplication() {
                 instance.packageName, 0
             )
         }
+
         val versionCode: Long by lazy { PackageInfoCompat.getLongVersionCode(packageInfo) }
 
-        val systemUIChannel: YukiHookDataChannel.NameSpace by lazy {
-            instance.dataChannel(packageName = PackageNames.SYSTEM_UI)
+        var isSafeMode: Boolean = false
+            private set
+
+        fun setSafeMode(safeMode: Boolean) {
+            this.isSafeMode = safeMode
         }
+    }
 
-        private var _safeMode: Boolean = false
-
-        val safeMode: Boolean get() = _safeMode
-
-        fun updateSafeMode(safeMode: Boolean) {
-            _safeMode = safeMode
-        }
+    interface XposedServiceStateListener {
+        fun onServiceStateChanged(service: XposedService?)
     }
 }

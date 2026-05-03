@@ -1,4 +1,8 @@
-@file:Suppress("AssignedValueIsNeverRead")
+/*
+ * Copyright 2026 Proify, Tomakino
+ * Licensed under the Apache License, Version 2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
+ */
 
 package io.github.proify.lyricon.app.compose.color
 
@@ -46,10 +50,10 @@ import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.extra.SuperBottomSheet
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.AddCircle
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -108,8 +112,9 @@ fun MultiColorEditPaletteDialog(
         }
     }
 
-    SuperBottomSheet(
-        show = show,
+    OverlayBottomSheet (
+        show = show.value,
+        modifier = Modifier,
         title = title,
         endAction = {
             IconButton(onClick = {
@@ -123,129 +128,129 @@ fun MultiColorEditPaletteDialog(
                 )
             }
         },
-        onDismissRequest = { dismiss() }
-    ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .overScrollVertical()
-        ) {
-            item("color_selector_row") {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    LazyRow(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        onDismissRequest = { dismiss() },
+        content = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .overScrollVertical()
+            ) {
+                item("color_selector_row") {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(editColors.size, key = { it }) { index ->
-                            ColorSwatch(
-                                color = editColors[index],
-                                isSelected = index == selectedIndex,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .clickable {
-                                        selectedIndex = index
-                                        hexInput = editColors[index].toHexString()
-                                    }
+                        LazyRow(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(editColors.size, key = { it }) { index ->
+                                ColorSwatch(
+                                    color = editColors[index],
+                                    isSelected = index == selectedIndex,
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .clickable {
+                                            selectedIndex = index
+                                            hexInput = editColors[index].toHexString()
+                                        }
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+                        IconButton(
+                            onClick = {
+                                deleteCurrentColor()
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
+                            },
+                            backgroundColor = MiuixTheme.colorScheme.secondaryVariant
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.MinusCircle,
+                                tint = LocalContentColor.current,
+                                contentDescription = stringResource(R.string.action_delete_current_color)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        IconButton(
+                            onClick = {
+                                addColor()
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
+
+                            },
+                            backgroundColor = MiuixTheme.colorScheme.secondaryVariant
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.AddCircle,
+                                tint = LocalContentColor.current,
+                                contentDescription = stringResource(R.string.action_add_color)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(10.dp))
-                    IconButton(
-                        onClick = {
-                            deleteCurrentColor()
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
-                        },
-                        backgroundColor = MiuixTheme.colorScheme.secondaryVariant
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.MinusCircle,
-                            tint = LocalContentColor.current,
-                            contentDescription = stringResource(R.string.delete_current_color)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    IconButton(
-                        onClick = {
-                            addColor()
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
-
-                        },
-                        backgroundColor = MiuixTheme.colorScheme.secondaryVariant
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.AddCircle,
-                            tint = LocalContentColor.current,
-                            contentDescription = stringResource(R.string.add_color)
-                        )
-                    }
+                    Spacer(Modifier.height(ITEM_SPACING))
                 }
 
-                Spacer(Modifier.height(ITEM_SPACING))
-            }
-
-            item("color_picker") {
-                ColorPalette(
-                    color = selectedColor,
-                    onColorChanged = { newColor ->
-                        editColors[selectedIndex] = newColor
-                        hexInput = newColor.toHexString()
-                    }
-                )
-                Spacer(Modifier.height(ITEM_SPACING))
-            }
-
-            item("hex_input") {
-                HexInputRow(
-                    hexInput = hexInput,
-                    onHexInputChange = { newHex ->
-                        hexInput = newHex
-                        runCatching {
-                            val color = newHex.parseHexColor()
-                            editColors[selectedIndex] = color
+                item("color_picker") {
+                    ColorPalette(
+                        color = selectedColor,
+                        onColorChanged = { newColor ->
+                            editColors[selectedIndex] = newColor
+                            hexInput = newColor.toHexString()
                         }
-                    },
-                    onCopy = {
-                        clipboard.copyText(hexInput)
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
-                    },
-                    onPaste = {
-                        clipboard.pasteText()?.let { text ->
-                            hexInput = text
+                    )
+                    Spacer(Modifier.height(ITEM_SPACING))
+                }
+
+                item("hex_input") {
+                    HexInputRow(
+                        hexInput = hexInput,
+                        onHexInputChange = { newHex ->
+                            hexInput = newHex
                             runCatching {
-                                val color = text.parseHexColor()
+                                val color = newHex.parseHexColor()
                                 editColors[selectedIndex] = color
                             }
+                        },
+                        onCopy = {
+                            clipboard.copyText(hexInput)
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
+                        },
+                        onPaste = {
+                            clipboard.pasteText()?.let { text ->
+                                hexInput = text
+                                runCatching {
+                                    val color = text.parseHexColor()
+                                    editColors[selectedIndex] = color
+                                }
+                            }
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
                         }
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
-                    }
-                )
+                    )
 
-                Spacer(Modifier.height(ITEM_SPACING))
+                    Spacer(Modifier.height(ITEM_SPACING))
+                }
+
+                item("custom_content") {
+                    content()
+                }
+
+                item("confirm_buttons") {
+                    DialogButtonRow(
+                        onCancel = { dismiss() },
+                        onConfirm = {
+                            onConfirm(editColors.toList())
+                            dismiss()
+                        }
+                    )
+
+                    Spacer(Modifier.height(ITEM_SPACING))
+                }
             }
-
-            item("custom_content") {
-                content()
-            }
-
-            item("confirm_buttons") {
-                DialogButtonRow(
-                    onCancel = { dismiss() },
-                    onConfirm = {
-                        onConfirm(editColors.toList())
-                        dismiss()
-                    }
-                )
-
-                Spacer(Modifier.height(ITEM_SPACING))
-            }
-        }
-    }
+        })
 }
 
 @Composable

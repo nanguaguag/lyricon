@@ -13,6 +13,7 @@ import io.github.proify.android.extensions.safeDecode
 import io.github.proify.android.extensions.toJson
 import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.Serializable
+import java.util.Locale
 
 @Serializable
 @Parcelize
@@ -27,7 +28,6 @@ data class TextStyle(
     var enableCustomTextColor: Boolean = Defaults.ENABLE_CUSTOM_TEXT_COLOR,
     var enableExtractCoverTextColor: Boolean = Defaults.ENABLE_EXTRACT_COVER_TEXT_COLOR,
     var enableExtractCoverTextGradient: Boolean = Defaults.ENABLE_EXTRACT_COVER_TEXT_GRADIENT,
-    var enableRainbowTextColor: Boolean = Defaults.ENABLE_RAINBOW_TEXT_COLOR,
     var lightModeRainbowColor: RainbowTextColor? = Defaults.LIGHT_MODE_RAINBOW_COLOR,
     var darkModeRainbowColor: RainbowTextColor? = Defaults.DARK_MODE_RAINBOW_COLOR,
 
@@ -47,19 +47,66 @@ data class TextStyle(
 
     var relativeProgress: Boolean = Defaults.RELATIVE_PROGRESS,
     var relativeProgressHighlight: Boolean = Defaults.RELATIVE_PROGRESS_HIGHLIGHT,
-    var sustainLiftEnabled: Boolean = Defaults.SUSTAIN_LIFT_ENABLED,
-    var sustainGlowEnabled: Boolean = Defaults.SUSTAIN_GLOW_ENABLED,
+    var wordMotionEnabled: Boolean = Defaults.WORD_MOTION_ENABLED,
+    var wordMotionCjkLiftFactor: Float = Defaults.WORD_MOTION_CJK_LIFT_FACTOR,
+    var wordMotionCjkWaveFactor: Float = Defaults.WORD_MOTION_CJK_WAVE_FACTOR,
+    var wordMotionLatinLiftFactor: Float = Defaults.WORD_MOTION_LATIN_LIFT_FACTOR,
+    var wordMotionLatinWaveFactor: Float = Defaults.WORD_MOTION_LATIN_WAVE_FACTOR,
     var scaleInMultiLine: Float = Defaults.TEXT_SIZE_RATIO_IN_MULTI_LINE,
 
     var transitionConfig: String? = Defaults.TRANSITION_CONFIG,
-    var placeholderFormat: String? = Defaults.PLACEHOLDER_FORMAT
-) : AbstractStyle(), Parcelable {
+    var placeholderFormat: String? = Defaults.PLACEHOLDER_FORMAT,
+
+    var isDisableTranslation: Boolean = false,
+    var isTranslationOnly: Boolean = false,
+
+    var isAiTranslationEnable: Boolean = false,
+    var aiTranslationConfigs: AiTranslationConfigs? = null,
+    var isAiTranslationAutoIgnoreChinese: Boolean = false,
+
+    var enableEnterAnim: Boolean = false
+) : Parcelable, AbstractStyle() {
 
     companion object {
         const val TRANSITION_CONFIG_FAST: String = "fast"
         const val TRANSITION_CONFIG_SMOOTH: String = "smooth"
         const val TRANSITION_CONFIG_SLOW: String = "slow"
         const val TRANSITION_CONFIG_NONE = "none"
+
+        const val KEY_AI_TRANSLATION_ENABLED = "lyric_style_text_ai_translation_enabled"
+        const val KEY_AI_TRANSLATION_PROVIDER = "lyric_style_text_ai_translation_provider"
+        const val KEY_AI_TRANSLATION_TARGET_LANGUAGE =
+            "lyric_style_text_ai_translation_target_language"
+        const val KEY_AI_TRANSLATION_TARGET_LANGUAGE_CODE =
+            "lyric_style_text_ai_translation_target_language_code"
+
+        const val KEY_AI_TRANSLATION_API_KEY = "lyric_style_text_ai_translation_key"
+        const val KEY_AI_TRANSLATION_MODEL = "lyric_style_text_ai_translation_model"
+        const val KEY_AI_TRANSLATION_BASE_URL = "lyric_style_text_ai_translation_base_url"
+
+        // const val KEY_AI_TRANSLATION_IGNORE_REGEX = "lyric_style_text_ai_translation_ignore_regex"
+        const val KEY_AI_TRANSLATION_PROMPT = "lyric_style_text_ai_translation_prompt"
+        const val KEY_AI_TRANSLATION_TEMPERATURE = "lyric_style_text_ai_translation_temperature"
+        const val KEY_AI_TRANSLATION_TOP_P = "lyric_style_text_ai_translation_top_p"
+        const val KEY_AI_TRANSLATION_MAX_TOKENS = "lyric_style_text_ai_translation_max_tokens"
+        const val KEY_AI_TRANSLATION_PRESENCE_PENALTY =
+            "lyric_style_text_ai_translation_presence_penalty"
+        const val KEY_AI_TRANSLATION_FREQUENCY_PENALTY =
+            "lyric_style_text_ai_translation_frequency_penalty"
+
+        const val KEY_TEXT_TRANSLATION_ONLY = "lyric_style_text_translation_only"
+        const val KEY_TEXT_TRANSLATION_DISABLE = "lyric_style_text_translation_disable"
+        const val KEY_WORD_MOTION_ENABLED = "lyric_style_text_word_motion_enabled"
+        const val KEY_WORD_MOTION_CJK_LIFT_FACTOR = "lyric_style_text_word_motion_cjk_lift_factor"
+        const val KEY_WORD_MOTION_CJK_WAVE_FACTOR = "lyric_style_text_word_motion_cjk_wave_factor"
+        const val KEY_WORD_MOTION_LATIN_LIFT_FACTOR =
+            "lyric_style_text_word_motion_latin_lift_factor"
+        const val KEY_WORD_MOTION_LATIN_WAVE_FACTOR =
+            "lyric_style_text_word_motion_latin_wave_factor"
+        const val KEY_AI_TRANSLATION_IGNORE_CHINESE: String =
+            "lyric_style_text_ai_translation_auto_ignore_chinese"
+
+        const val KEY_ENABLED_ENTER_ANIM = "lyric_style_text_enable_enter_anim"
     }
 
     object PlaceholderFormat {
@@ -69,14 +116,50 @@ data class TextStyle(
     }
 
     object Defaults {
+        const val TRANSLATION_ONLY: Boolean = false
+        const val TRANSLATION_DISABLE: Boolean = false
+
+        const val AI_TRANSLATION_ENABLED: Boolean = false
+        val AI_TRANSLATION_PROVIDER = AiTranslationProvider.OPENAI.provider
+        val AI_TRANSLATION_TARGET_LANGUAGE_DISPLAY_NAME: String
+            get() {
+                val locale = Locale.getDefault()
+                val language = locale.getDisplayLanguage(locale)
+                val script = locale.getDisplayScript(locale)
+
+                return when {
+                    !script.isNullOrBlank() -> script
+                    else -> language
+                }
+            }
+
+        val AI_TRANSLATION_HOST: String by lazy {
+            val p = AiTranslationProvider.entries.find {
+                it.provider == AI_TRANSLATION_PROVIDER
+            }
+            p?.url.orEmpty()
+        }
+
+        val AI_TRANSLATION_MODEL: String = AiTranslationProvider.OPENAI.model
+        val AI_TRANSLATION_PROMPT: String = AiTranslationConfigs.USER_PROMPT
+        const val AI_TRANSLATION_TEMPERATURE = AiTranslationConfigs.DEFAULT_TEMPERATURE
+        const val AI_TRANSLATION_TOP_P = AiTranslationConfigs.DEFAULT_TOP_P
+        const val AI_TRANSLATION_MAX_TOKENS = AiTranslationConfigs.DEFAULT_MAX_TOKENS
+        const val AI_TRANSLATION_PRESENCE_PENALTY = AiTranslationConfigs.DEFAULT_PRESENCE_PENALTY
+        const val AI_TRANSLATION_FREQUENCY_PENALTY = AiTranslationConfigs.DEFAULT_FREQUENCY_PENALTY
+        const val AI_TRANSLATION_IGNORE_CHINESE = false
+
         const val PLACEHOLDER_FORMAT: String = PlaceholderFormat.NAME
         const val TRANSITION_CONFIG: String = TRANSITION_CONFIG_SMOOTH
 
         const val TEXT_SIZE_RATIO_IN_MULTI_LINE: Float = 0.86f
         const val RELATIVE_PROGRESS: Boolean = true
         const val RELATIVE_PROGRESS_HIGHLIGHT: Boolean = false
-        const val SUSTAIN_LIFT_ENABLED: Boolean = true
-        const val SUSTAIN_GLOW_ENABLED: Boolean = true
+        const val WORD_MOTION_ENABLED: Boolean = false
+        const val WORD_MOTION_CJK_LIFT_FACTOR: Float = 0.055f
+        const val WORD_MOTION_CJK_WAVE_FACTOR: Float = 2.8f
+        const val WORD_MOTION_LATIN_LIFT_FACTOR: Float = 0.065f
+        const val WORD_MOTION_LATIN_WAVE_FACTOR: Float = 3.6f
 
         const val TEXT_SIZE: Float = 0f
         val MARGINS: RectF = RectF()
@@ -88,7 +171,6 @@ data class TextStyle(
         const val ENABLE_CUSTOM_TEXT_COLOR: Boolean = false
         const val ENABLE_EXTRACT_COVER_TEXT_COLOR: Boolean = false
         const val ENABLE_EXTRACT_COVER_TEXT_GRADIENT: Boolean = false
-        const val ENABLE_RAINBOW_TEXT_COLOR: Boolean = false
 
         val LIGHT_MODE_RAINBOW_COLOR: RainbowTextColor? = null
         val DARK_MODE_RAINBOW_COLOR: RainbowTextColor? = null
@@ -131,20 +213,7 @@ data class TextStyle(
             "lyric_style_text_extract_cover_gradient",
             Defaults.ENABLE_EXTRACT_COVER_TEXT_GRADIENT
         )
-        enableRainbowTextColor = preferences.getBoolean(
-            "lyric_style_text_enable_rainbow_color",
-            Defaults.ENABLE_RAINBOW_TEXT_COLOR
-        )
-        if (enableCustomTextColor) {
-            enableExtractCoverTextColor = false
-            enableExtractCoverTextGradient = false
-            enableRainbowTextColor = false
-        }
-        if (enableRainbowTextColor) {
-            enableCustomTextColor = false
-            enableExtractCoverTextColor = false
-            enableExtractCoverTextGradient = false
-        }
+
         if (!enableExtractCoverTextColor) {
             enableExtractCoverTextGradient = false
         }
@@ -202,13 +271,25 @@ data class TextStyle(
             "lyric_style_text_relative_progress_highlight",
             Defaults.RELATIVE_PROGRESS_HIGHLIGHT
         )
-        sustainLiftEnabled = preferences.getBoolean(
-            "lyric_style_text_sustain_lift",
-            Defaults.SUSTAIN_LIFT_ENABLED
+        wordMotionEnabled = preferences.getBoolean(
+            KEY_WORD_MOTION_ENABLED,
+            Defaults.WORD_MOTION_ENABLED
         )
-        sustainGlowEnabled = preferences.getBoolean(
-            "lyric_style_text_sustain_glow",
-            Defaults.SUSTAIN_GLOW_ENABLED
+        wordMotionCjkLiftFactor = preferences.getFloat(
+            KEY_WORD_MOTION_CJK_LIFT_FACTOR,
+            Defaults.WORD_MOTION_CJK_LIFT_FACTOR
+        )
+        wordMotionCjkWaveFactor = preferences.getFloat(
+            KEY_WORD_MOTION_CJK_WAVE_FACTOR,
+            Defaults.WORD_MOTION_CJK_WAVE_FACTOR
+        )
+        wordMotionLatinLiftFactor = preferences.getFloat(
+            KEY_WORD_MOTION_LATIN_LIFT_FACTOR,
+            Defaults.WORD_MOTION_LATIN_LIFT_FACTOR
+        )
+        wordMotionLatinWaveFactor = preferences.getFloat(
+            KEY_WORD_MOTION_LATIN_WAVE_FACTOR,
+            Defaults.WORD_MOTION_LATIN_WAVE_FACTOR
         )
         scaleInMultiLine = preferences.getFloat(
             "lyric_style_text_size_ratio_in_multi_line_mode",
@@ -223,6 +304,26 @@ data class TextStyle(
             "lyric_style_text_placeholder_format",
             Defaults.PLACEHOLDER_FORMAT
         )
+
+        isDisableTranslation = preferences.getBoolean(
+            KEY_TEXT_TRANSLATION_DISABLE,
+            Defaults.TRANSLATION_DISABLE
+        )
+        isTranslationOnly = preferences.getBoolean(
+            KEY_TEXT_TRANSLATION_ONLY,
+            Defaults.TRANSLATION_ONLY
+        )
+
+        isAiTranslationEnable =
+            preferences.getBoolean(KEY_AI_TRANSLATION_ENABLED, Defaults.AI_TRANSLATION_ENABLED)
+        aiTranslationConfigs = getAiTranslationConfigs(preferences)
+        isAiTranslationAutoIgnoreChinese =
+            preferences.getBoolean(
+                KEY_AI_TRANSLATION_IGNORE_CHINESE,
+                Defaults.AI_TRANSLATION_IGNORE_CHINESE
+            )
+
+        enableEnterAnim = preferences.getBoolean(KEY_ENABLED_ENTER_ANIM, false)
     }
 
     override fun onWrite(editor: SharedPreferences.Editor) {
@@ -238,7 +339,6 @@ data class TextStyle(
             "lyric_style_text_extract_cover_gradient",
             enableExtractCoverTextGradient
         )
-        editor.putBoolean("lyric_style_text_enable_rainbow_color", enableRainbowTextColor)
         editor.putString(
             "lyric_style_text_rainbow_color_light_mode",
             lightModeRainbowColor.toJson()
@@ -267,8 +367,11 @@ data class TextStyle(
             "lyric_style_text_relative_progress_highlight",
             relativeProgressHighlight
         )
-        editor.putBoolean("lyric_style_text_sustain_lift", sustainLiftEnabled)
-        editor.putBoolean("lyric_style_text_sustain_glow", sustainGlowEnabled)
+        editor.putBoolean(KEY_WORD_MOTION_ENABLED, wordMotionEnabled)
+        editor.putFloat(KEY_WORD_MOTION_CJK_LIFT_FACTOR, wordMotionCjkLiftFactor)
+        editor.putFloat(KEY_WORD_MOTION_CJK_WAVE_FACTOR, wordMotionCjkWaveFactor)
+        editor.putFloat(KEY_WORD_MOTION_LATIN_LIFT_FACTOR, wordMotionLatinLiftFactor)
+        editor.putFloat(KEY_WORD_MOTION_LATIN_WAVE_FACTOR, wordMotionLatinWaveFactor)
         editor.putFloat(
             "lyric_style_text_size_ratio_in_multi_line_mode",
             scaleInMultiLine
@@ -278,9 +381,112 @@ data class TextStyle(
             "lyric_style_text_transition_config",
             transitionConfig
         )
-        editor.putString(
-            "lyric_style_text_placeholder_format",
-            placeholderFormat
+        editor.putString("lyric_style_text_placeholder_format", placeholderFormat)
+
+        editor.putBoolean(KEY_TEXT_TRANSLATION_DISABLE, isDisableTranslation)
+        editor.putBoolean(KEY_TEXT_TRANSLATION_ONLY, isTranslationOnly)
+
+        editor.putBoolean(KEY_AI_TRANSLATION_ENABLED, isAiTranslationEnable)
+        aiTranslationConfigs?.let { writeAiTranslationConfigs(editor, it) }
+        editor.putBoolean(KEY_AI_TRANSLATION_IGNORE_CHINESE, isAiTranslationAutoIgnoreChinese)
+
+        editor.putBoolean(KEY_ENABLED_ENTER_ANIM, enableEnterAnim)
+    }
+
+    private fun getAiTranslationConfigs(preferences: SharedPreferences): AiTranslationConfigs {
+        val providerName =
+            preferences.getString(KEY_AI_TRANSLATION_PROVIDER, Defaults.AI_TRANSLATION_PROVIDER)
+        val provider = AiTranslationProvider.entries.firstOrNull {
+            it.name.equals(providerName, ignoreCase = true)
+        }
+
+        val model = preferences.getString(KEY_AI_TRANSLATION_MODEL, provider?.model)
+        val baseUrl = preferences.getString(KEY_AI_TRANSLATION_BASE_URL, provider?.url)
+
+        val customPrompt =
+            preferences.getString(
+                KEY_AI_TRANSLATION_PROMPT,
+                Defaults.AI_TRANSLATION_PROMPT
+            )
+
+        val targetLanguage =
+            preferences.getString(
+                KEY_AI_TRANSLATION_TARGET_LANGUAGE,
+                Defaults.AI_TRANSLATION_TARGET_LANGUAGE_DISPLAY_NAME
+            )
+
+        val apiKey = preferences.getString(KEY_AI_TRANSLATION_API_KEY, null)
+        val temperature = preferences.getFloatCompat(
+            KEY_AI_TRANSLATION_TEMPERATURE,
+            Defaults.AI_TRANSLATION_TEMPERATURE
         )
+        val topP = preferences.getFloatCompat(
+            KEY_AI_TRANSLATION_TOP_P,
+            Defaults.AI_TRANSLATION_TOP_P
+        )
+        val maxTokens = preferences.getIntCompat(
+            KEY_AI_TRANSLATION_MAX_TOKENS,
+            Defaults.AI_TRANSLATION_MAX_TOKENS
+        )
+        val presencePenalty = preferences.getFloatCompat(
+            KEY_AI_TRANSLATION_PRESENCE_PENALTY,
+            Defaults.AI_TRANSLATION_PRESENCE_PENALTY
+        )
+        val frequencyPenalty = preferences.getFloatCompat(
+            KEY_AI_TRANSLATION_FREQUENCY_PENALTY,
+            Defaults.AI_TRANSLATION_FREQUENCY_PENALTY
+        )
+
+        return AiTranslationConfigs(
+            provider = provider?.name,
+            targetLanguage = targetLanguage,
+            apiKey = apiKey,
+            model = model,
+            baseUrl = baseUrl,
+            prompt = customPrompt ?: Defaults.AI_TRANSLATION_PROMPT,
+            temperature = temperature,
+            topP = topP,
+            maxTokens = maxTokens,
+            presencePenalty = presencePenalty,
+            frequencyPenalty = frequencyPenalty
+        )
+    }
+
+    private fun writeAiTranslationConfigs(
+        editor: SharedPreferences.Editor,
+        configs: AiTranslationConfigs
+    ) {
+        editor.putString(KEY_AI_TRANSLATION_PROVIDER, configs.provider)
+        editor.putString(KEY_AI_TRANSLATION_MODEL, configs.model)
+        editor.putString(KEY_AI_TRANSLATION_BASE_URL, configs.baseUrl)
+        editor.putString(KEY_AI_TRANSLATION_PROMPT, configs.prompt)
+        editor.putString(KEY_AI_TRANSLATION_TARGET_LANGUAGE, configs.targetLanguage)
+        editor.putString(KEY_AI_TRANSLATION_TEMPERATURE, configs.temperature.toString())
+        editor.putString(KEY_AI_TRANSLATION_TOP_P, configs.topP.toString())
+        editor.putString(KEY_AI_TRANSLATION_MAX_TOKENS, configs.maxTokens.toString())
+        editor.putString(KEY_AI_TRANSLATION_PRESENCE_PENALTY, configs.presencePenalty.toString())
+        editor.putString(KEY_AI_TRANSLATION_FREQUENCY_PENALTY, configs.frequencyPenalty.toString())
+    }
+
+    private fun SharedPreferences.getFloatCompat(key: String, defaultValue: Float): Float {
+        return when (val value = all[key]) {
+            is Float -> value
+            is String -> value.toFloatOrNull() ?: defaultValue
+            is Int -> value.toFloat()
+            is Long -> value.toFloat()
+            is Double -> value.toFloat()
+            else -> defaultValue
+        }
+    }
+
+    private fun SharedPreferences.getIntCompat(key: String, defaultValue: Int): Int {
+        return when (val value = all[key]) {
+            is Int -> value
+            is String -> value.toIntOrNull() ?: defaultValue
+            is Long -> value.toInt()
+            is Float -> value.toInt()
+            is Double -> value.toInt()
+            else -> defaultValue
+        }
     }
 }

@@ -30,14 +30,14 @@ import io.github.proify.android.extensions.toJson
 import io.github.proify.lyricon.app.R
 import io.github.proify.lyricon.app.compose.color.ColorBox
 import io.github.proify.lyricon.app.compose.color.MultiColorEditPaletteDialog
-import io.github.proify.lyricon.app.compose.custom.miuix.extra.SuperArrow
 import io.github.proify.lyricon.app.util.editCommit
 import io.github.proify.lyricon.lyric.style.RainbowTextColor
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.extra.SuperBottomSheet
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 
@@ -105,9 +105,11 @@ private fun TextColorBottomSheet(
     onReset: () -> Unit,
     onColorChange: () -> Unit
 ) {
-    SuperBottomSheet(
-        show = isVisible,
+    OverlayBottomSheet(
+        show = isVisible.value,
+        modifier = Modifier,
         title = title,
+        backgroundColor = MiuixTheme.colorScheme.surface,
         endAction = {
             if (textColor.hasCustomColors()) {
                 Row {
@@ -124,23 +126,23 @@ private fun TextColorBottomSheet(
                 }
             }
         },
-        backgroundColor = MiuixTheme.colorScheme.surface,
+        onDismissRequest = { isVisible.value = false },
         insideMargin = DpSize(0.dp, 0.dp),
-        onDismissRequest = { isVisible.value = false }
-    ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .overScrollVertical()
-        ) {
-            item("color_settings") {
-                ColorSettingsContent(
-                    textColor = textColor,
-                    onColorChange = onColorChange
-                )
+        defaultWindowInsetsPadding = true,
+        content = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .overScrollVertical()
+            ) {
+                item("color_settings") {
+                    ColorSettingsContent(
+                        textColor = textColor,
+                        onColorChange = onColorChange
+                    )
+                }
             }
-        }
-    }
+        })
 }
 
 @Composable
@@ -195,7 +197,7 @@ private fun TextColorArrow(
     enabled: Boolean = true,
     onClick: () -> Unit
 ) {
-    SuperArrow(
+    ArrowPreference(
         title = title,
         startAction = leftAction,
         endActions = {},
@@ -228,7 +230,7 @@ private fun ColorPickerItem(
         }
     )
 
-    SuperArrow(
+    ArrowPreference(
         title = title,
         startAction = leftAction,
         endActions = {
